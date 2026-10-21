@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>До нашей свадьбы</title>
+<style>
+:root{--bg:#f1ecfa;--ink:#2a1b4d;--muted:#6b5c8f;--accent:#7c3aed;--line:#d8ccf0;--panel:#faf7ff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#170f2b;--ink:#ece6fb;--muted:#a99bd0;--accent:#8b5cf6;--line:#3a2b66;--panel:#1f1639;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#170f2b;--ink:#ece6fb;--muted:#a99bd0;--accent:#8b5cf6;--line:#3a2b66;--panel:#1f1639;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 65%) no-repeat,var(--bg);color:var(--ink);font-family:'Comic Sans MS','Comic Sans','Chalkboard SE','Comic Neue',cursive;display:flex;align-items:center;justify-content:center;padding:24px}
+main{width:100%;max-width:760px;text-align:center;position:relative;z-index:1}
+#rot{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+h1{font-family:inherit;font-weight:400;font-size:clamp(2rem,6vw,3.2rem);margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 36px;min-height:1.4em}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:4px;margin-bottom:36px;background:var(--panel)}
+.tabs button{font:inherit;border:0;background:none;color:var(--muted);padding:10px 22px;border-radius:999px;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--accent);color:#fff}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.units{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.unit{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 6px}
+.num{font-family:inherit;font-size:clamp(2.4rem,9vw,4.6rem);line-height:1;font-variant-numeric:tabular-nums}
+.lbl{margin-top:8px;color:var(--muted);font-size:.95rem}
+.only{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:34px 12px}
+.only .num{font-size:clamp(2.6rem,12vw,6rem);word-break:break-word}
+[hidden]{display:none!important}
+.set{margin-top:40px;color:var(--muted);font-size:.95rem}
+.set input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-left:8px}
+@media (max-width:480px){.units{gap:8px}.unit{padding:16px 2px}}
+</style>
+</head>
+<body>
+<canvas id="rot" aria-hidden="true"></canvas>
+<main>
+  <h1>До нашей свадьбы</h1>
+  <p class="sub" id="sub"></p>
+  <div class="tabs" role="group" aria-label="Формат">
+    <button id="m1" aria-pressed="true">Дни, часы, минуты</button>
+    <button id="m2" aria-pressed="false">Секунды</button>
+  </div>
+  <section id="full" class="units" aria-live="off">
+    <div class="unit"><div class="num" id="d">0</div><div class="lbl" id="dl">дней</div></div>
+    <div class="unit"><div class="num" id="h">0</div><div class="lbl" id="hl">часов</div></div>
+    <div class="unit"><div class="num" id="mi">0</div><div class="lbl" id="ml">минут</div></div>
+    <div class="unit"><div class="num" id="s">0</div><div class="lbl" id="sl">секунд</div></div>
+  </section>
+  <section id="sec" class="only" hidden>
+    <div class="num" id="tot">0</div><div class="lbl" id="tl">секунд</div>
+  </section>
+</main>
+<script>
+(function(){
+  var TARGET='2027-08-11T16:30:00';
+  var $=function(i){return document.getElementById(i)};
+  function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function save(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function plural(n,f){var a=Math.abs(n)%100,b=a%10;if(a>10&&a<20)return f[2];if(b>1&&b<5)return f[1];if(b===1)return f[0];return f[2]}
+  var mode=load('wedding-mode')==='sec'?'sec':'full';
+  var target=new Date(TARGET).getTime();
+  function setMode(m){
+    mode=m;save('wedding-mode',m);
+    $('full').hidden=m!=='full';$('sec').hidden=m!=='sec';
+    $('m1').setAttribute('aria-pressed',m==='full');
+    $('m2').setAttribute('aria-pressed',m==='sec');
+    tick();
+  }
+  $('m1').onclick=function(){setMode('full')};
+  $('m2').onclick=function(){setMode('sec')};
+  function fmt(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'\u00a0')}
+  function tick(){
+    var diff=Math.floor((target-Date.now())/1000);
+    if(isNaN(diff)){return}
+    if(diff<=0){
+      diff=0;$('sub').textContent='Этот день уже наступил. Поздравляем!';
+    }else{
+      $('sub').textContent=new Date(target).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+    }
+    if(mode==='full'){
+      var d=Math.floor(diff/86400),h=Math.floor(diff%86400/3600),m=Math.floor(diff%3600/60),s=diff%60;
+      $('d').textContent=d;$('h').textContent=h;$('mi').textContent=m;$('s').textContent=s;
+      $('dl').textContent=plural(d,['день','дня','дней']);
+      $('hl').textContent=plural(h,['час','часа','часов']);
+      $('ml').textContent=plural(m,['минута','минуты','минут']);
+      $('sl').textContent=plural(s,['секунда','секунды','секунд']);
+    }else{
+      $('tot').textContent=fmt(diff);
+      $('tl').textContent=plural(diff,['секунда','секунды','секунд']);
+    }
+  }
+  setMode(mode);
+  setInterval(tick,250);
+})();
+
+(function(){
+  var cv=document.getElementById('rot'),cx=cv.getContext('2d');
+  var W=0,H=0,vines=[],frags=[],last=0,rgb='139,92,246',still=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function rnd(a,b){return a+Math.random()*(b-a)}
+  function color(){
+    var c=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    if(c.charAt(0)==='#'&&c.length===7)rgb=parseInt(c.substr(1,2),16)+','+parseInt(c.substr(3,2),16)+','+parseInt(c.substr(5,2),16);
+  }
+  function mk(len,w,depth){
+    var n=Math.max(6,Math.floor(len/14)),v={n:n,seg:len/n,w:w,ph:rnd(0,6.28),sp:rnd(.5,1),amp:rnd(.04,.1),kids:[]};
+    if(depth<2){var k=Math.floor(rnd(1,4));for(var i=0;i<k;i++)v.kids.push({at:Math.floor(rnd(n*.2,n*.85)),rel:rnd(.5,1.1)*(Math.random()<.5?-1:1),v:mk(len*rnd(.3,.55),w*.6,depth+1)})}
+    return v;
+  }
+  function build(){
+    vines=[];var x,y;
+    for(x=-20;x<W+40;x+=rnd(90,150))vines.push({x:x,y:H+10,a:-Math.PI/2+rnd(-.5,.5),v:mk(rnd(.2,.5)*H,rnd(5,9),0)});
+    for(y=H*.3;y<H;y+=rnd(170,270)){
+      vines.push({x:-10,y:y,a:rnd(-.5,.3),v:mk(rnd(.08,.2)*W+80,rnd(4,7),0)});
+      vines.push({x:W+10,y:y,a:Math.PI+rnd(-.3,.5),v:mk(rnd(.08,.2)*W+80,rnd(4,7),0)});
+    }
+    for(x=-20;x<W+40;x+=rnd(70,120))vines.push({x:x,y:-10,a:Math.PI/2+rnd(-.55,.55),v:mk(rnd(.14,.34)*H,rnd(5,9),0)});
+    frags=[];var m=Math.max(5,Math.min(12,Math.round(W/160)));
+    for(var j=0;j<m;j++){var L=rnd(60,150);frags.push({x:rnd(0,W),y:rnd(0,H),vx:rnd(-22,22),vy:rnd(-16,16),r:rnd(0,6.28),vr:rnd(-.3,.3),L:L,v:mk(L,rnd(3,5.5),1)})}
+  }
+  function draw(v,t,x,y,a){
+    var px,py,i,k,f;
+    for(i=0;i<v.n;i++){
+      a+=Math.sin(t*v.sp+v.ph+i*.3)*v.amp;
+      px=x;py=y;x+=Math.cos(a)*v.seg;y+=Math.sin(a)*v.seg;
+      f=1-i/v.n;
+      cx.lineWidth=v.w*f+.8;
+      cx.strokeStyle='rgba('+rgb+','+(.18+.25*f)+')';
+      cx.beginPath();cx.moveTo(px,py);cx.lineTo(x,y);cx.stroke();
+      for(k=0;k<v.kids.length;k++)if(v.kids[k].at===i){
+        draw(v.kids[k].v,t,x,y,a+v.kids[k].rel);
+        cx.fillStyle='rgba('+rgb+',.5)';cx.beginPath();cx.arc(x,y,v.w*f*.7+1.5,0,6.283);cx.fill();
+      }
+    }
+    var p=.5+.5*Math.sin(t*2+v.ph);
+    cx.fillStyle='rgba('+rgb+','+(.35+.4*p)+')';
+    cx.beginPath();cx.arc(x,y,2+v.w*.35*(.7+.5*p),0,6.283);cx.fill();
+  }
+  function frame(ms){
+    cx.clearRect(0,0,W,H);
+    var t=ms/1000,dt=still?0:Math.min(.05,(ms-last)/1000);last=ms;
+    for(var i=0;i<vines.length;i++)draw(vines[i].v,t,vines[i].x,vines[i].y,vines[i].a);
+    for(var j=0;j<frags.length;j++){
+      var f=frags[j];
+      f.x+=f.vx*dt;f.y+=f.vy*dt;f.r+=f.vr*dt;
+      if(f.x<-f.L)f.x=W+f.L;else if(f.x>W+f.L)f.x=-f.L;
+      if(f.y<-f.L)f.y=H+f.L;else if(f.y>H+f.L)f.y=-f.L;
+      cx.save();cx.translate(f.x,f.y);cx.rotate(f.r);draw(f.v,t,-f.L/2,0,0);cx.restore();
+    }
+    if(!still)requestAnimationFrame(frame);
+  }
+  function size(){
+    var nw=innerWidth,nh=innerHeight;
+    if(vines.length&&nw===W&&Math.abs(nh-H)<120)return;
+    var d=Math.min(window.devicePixelRatio||1,2);
+    W=nw;H=nh;cv.width=W*d;cv.height=H*d;
+    cx.setTransform(d,0,0,d,0,0);cx.lineCap='round';
+    color();build();
+    if(still)frame(0);
+  }
+  addEventListener('resize',size);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){setTimeout(function(){color();if(still)frame(0)},50)});
+  size();
+  if(!still)requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
